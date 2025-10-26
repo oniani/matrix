@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use std::cmp;
 use std::fmt;
 
@@ -10,7 +11,8 @@ struct Matrix {
 type Shape = (usize, usize);
 
 impl Matrix {
-    fn new(data: Vec<f32>, n_rows: usize, n_cols: usize) -> Self {
+    fn new(data: Vec<f32>, shape: Shape) -> Self {
+        let (n_rows, n_cols) = shape;
         Self {
             data,
             n_rows,
@@ -18,7 +20,8 @@ impl Matrix {
         }
     }
 
-    fn with_value(val: f32, n_rows: usize, n_cols: usize) -> Self {
+    fn with_value(val: f32, shape: Shape) -> Self {
+        let (n_rows, n_cols) = shape;
         Self {
             data: vec![val; n_rows * n_cols],
             n_rows,
@@ -26,7 +29,8 @@ impl Matrix {
         }
     }
 
-    fn with_range(start: usize, end: usize, n_rows: usize, n_cols: usize) -> Self {
+    fn with_range(start: usize, end: usize, shape: Shape) -> Self {
+        let (n_rows, n_cols) = shape;
         Self {
             data: (start..end).map(|x| x as f32).collect(),
             n_rows,
@@ -95,7 +99,7 @@ impl Matrix {
                             data.push(self.get(i, j)?);
                         }
                     }
-                    let submatrix = Matrix::new(data, n - 1, n - 1);
+                    let submatrix = Matrix::new(data, (n - 1, n - 1));
                     acc += (-1.0_f32).powi(col as i32)
                         * self.get(0, col)?
                         * submatrix.det_laplace()?;
@@ -113,19 +117,30 @@ impl Matrix {
             eprintln!("ERROR: Cannot multiply {}x{} with {}x{}", m1, n1, m2, n2);
         }
 
-        let mut m = Matrix::with_value(0.0, m1, n2);
+        let mut mat = Matrix::with_value(0.0, (m1, n2));
         for i in 0..m1 {
             for k in 0..n1 {
                 let val_ik = self.get(i, k)?;
                 for j in 0..n2 {
                     let val_kj = other.get(k, j)?;
-                    let val_ij = m.get(i, j)?;
-                    m.set(i, j, val_ij + val_ik * val_kj)?;
+                    let val_ij = mat.get(i, j)?;
+                    mat.set(i, j, val_ij + val_ik * val_kj)?;
                 }
             }
         }
 
-        Ok(m)
+        Ok(mat)
+    }
+
+    fn transpose(&self) -> Result<Self, ()> {
+        let (m, n) = self.shape();
+        let mut mat = Matrix::new(self.data.clone(), (n, m));
+        for i in 0..m {
+            for j in 0..n {
+                mat.set(j, i, self.get(i, j)?)?;
+            }
+        }
+        Ok(mat)
     }
 }
 
@@ -172,42 +187,42 @@ mod tests {
 
     #[test]
     fn init() {
-        let val = Matrix::new(vec![1.0, 2.0, 3.0, 4.0], 2, 2);
-        let res = Matrix::new(vec![1.0, 2.0, 3.0, 4.0], 2, 2);
+        let val = Matrix::new(vec![1.0, 2.0, 3.0, 4.0], (2, 2));
+        let res = Matrix::new(vec![1.0, 2.0, 3.0, 4.0], (2, 2));
         assert_eq!(res, val);
     }
 
     #[test]
     fn with_value() {
-        let val = Matrix::with_value(4.0, 2, 3);
-        let res = Matrix::new(vec![4.0, 4.0, 4.0, 4.0, 4.0, 4.0], 2, 3);
+        let val = Matrix::with_value(4.0, (2, 3));
+        let res = Matrix::new(vec![4.0, 4.0, 4.0, 4.0, 4.0, 4.0], (2, 3));
         assert_eq!(res, val);
     }
 
     #[test]
     fn shape() {
-        let val = Matrix::with_value(4.0, 2, 3).shape();
+        let val = Matrix::with_value(4.0, (2, 3)).shape();
         let res = (2, 3);
         assert_eq!(res, val);
     }
 
     #[test]
     fn size() {
-        let val = Matrix::with_value(4.0, 2, 3).size();
+        let val = Matrix::with_value(4.0, (2, 3)).size();
         let res = 2 * 3;
         assert_eq!(res, val);
     }
 
     #[test]
     fn bytes() {
-        let val = Matrix::with_value(4.0, 2, 3).bytes();
+        let val = Matrix::with_value(4.0, (2, 3)).bytes();
         let res = 2 * 3 * 4;
         assert_eq!(res, val);
     }
 
     #[test]
     fn get() -> Result<(), ()> {
-        let val = Matrix::with_range(3, 9, 2, 3).get(1, 1)?;
+        let val = Matrix::with_range(3, 9, (2, 3)).get(1, 1)?;
         let res = 7.0;
         assert_eq!(res, val);
         Ok(())
@@ -215,7 +230,7 @@ mod tests {
 
     #[test]
     fn set() -> Result<(), ()> {
-        let mut val = Matrix::with_range(3, 9, 2, 3);
+        let mut val = Matrix::with_range(3, 9, (2, 3));
         val.set(1, 1, 8.0)?;
         let res = 8.0;
         assert_eq!(res, val.get(1, 1)?);
@@ -224,26 +239,37 @@ mod tests {
 
     #[test]
     fn det() -> Result<(), ()> {
-        let m = Matrix::new(vec![2.0, 3.0, 5.0, 7.0, 11.0, 13.0, 17.0, 19.0, 23.0], 3, 3)
-            .det_laplace()?;
+        let mat = Matrix::new(
+            vec![2.0, 3.0, 5.0, 7.0, 11.0, 13.0, 17.0, 19.0, 23.0],
+            (3, 3),
+        )
+        .det_laplace()?;
         let res = -78.0;
-        assert_eq!(res, m);
+        assert_eq!(res, mat);
         Ok(())
     }
 
     #[test]
     fn matmul() -> Result<(), ()> {
-        let m1 = Matrix::new((0..30).map(|x| x as f32).collect(), 2, 15);
-        let m2 = Matrix::new((0..30).map(|x| x as f32).collect(), 15, 2);
-        let m3 = m1.matmul(m2)?;
-        let res = Matrix::new(vec![2030.0, 2135.0, 5180.0, 5510.0], 2, 2);
-        assert_eq!(res, m3);
+        let mat1 = Matrix::new((0..30).map(|x| x as f32).collect(), (2, 15));
+        let mat2 = Matrix::new((0..30).map(|x| x as f32).collect(), (15, 2));
+        let mat3 = mat1.matmul(mat2)?;
+        let res = Matrix::new(vec![2030.0, 2135.0, 5180.0, 5510.0], (2, 2));
+        assert_eq!(res, mat3);
+        Ok(())
+    }
+
+    #[test]
+    fn transpose() -> Result<(), ()> {
+        let mat = Matrix::new((0..6).map(|x| x as f32).collect(), (2, 3)).transpose()?;
+        let res = Matrix::new(vec![0.0, 3.0, 1.0, 4.0, 2.0, 5.0], (3, 2));
+        assert_eq!(res, mat);
         Ok(())
     }
 
     #[test]
     fn to_string() {
-        let val = Matrix::new((1..10).map(|x| x as f32).collect(), 3, 3);
+        let val = Matrix::new((1..10).map(|x| x as f32).collect(), (3, 3));
         let res = "[[1, 2, 3]\n [4, 5, 6]\n [7, 8, 9]]\n";
         assert_eq!(res, val.to_string());
     }
