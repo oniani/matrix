@@ -111,11 +111,7 @@ impl Matrix {
 
     fn matmul(&self, other: Self) -> Result<Self, ()> {
         let (m1, n1) = self.shape();
-        let (m2, n2) = other.shape();
-
-        if n1 != m2 {
-            eprintln!("ERROR: Cannot multiply {}x{} with {}x{}", m1, n1, m2, n2);
-        }
+        let (_, n2) = other.shape();
 
         let mut mat = Matrix::with_value(0.0, (m1, n2));
         for i in 0..m1 {
@@ -141,6 +137,16 @@ impl Matrix {
             }
         }
         Ok(mat)
+    }
+
+    fn trace(&self) -> Result<f32, ()> {
+        let mut res = 0.0;
+        let mut idx = 0;
+        while idx < self.n_rows && idx < self.n_cols {
+            res += self.get(idx, idx)?;
+            idx += 1;
+        }
+        Ok(res)
     }
 }
 
@@ -264,6 +270,14 @@ mod tests {
         let mat = Matrix::new((0..6).map(|x| x as f32).collect(), (2, 3)).transpose()?;
         let res = Matrix::new(vec![0.0, 3.0, 1.0, 4.0, 2.0, 5.0], (3, 2));
         assert_eq!(res, mat);
+        Ok(())
+    }
+
+    #[test]
+    fn trace() -> Result<(), ()> {
+        let mat = Matrix::new((0..9).map(|x| x as f32).collect(), (3, 3)).transpose()?;
+        let res = mat.trace()?;
+        assert_eq!(res, 12.0);
         Ok(())
     }
 
