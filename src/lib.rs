@@ -69,9 +69,7 @@ impl Matrix {
 
     /// Computes matrix via Laplace (cofactor) expansion
     /// Complexity: O(n!)
-    ///
-    /// NOTE: Implement LU decomposition, which has the computational time complexity of O(n^3).
-    fn det_laplace(&self) -> Result<f32, ()> {
+    fn det(&self) -> Result<f32, ()> {
         if self.n_rows != self.n_cols {
             eprintln!("Determinant is not defined for a non-square matrix");
         }
@@ -100,13 +98,56 @@ impl Matrix {
                         }
                     }
                     let submatrix = Matrix::new(data, (n - 1, n - 1));
-                    acc += (-1.0_f32).powi(col as i32)
-                        * self.get(0, col)?
-                        * submatrix.det_laplace()?;
+                    acc += (-1.0_f32).powi(col as i32) * self.get(0, col)? * submatrix.det()?;
                 }
                 Ok(acc)
             }
         }
+    }
+
+    /// Performs LU decomposition using Doolittle's method (without pivoting).
+    /// Complexity: O(n^3)
+    pub fn lu(&self) -> Result<(Matrix, Matrix), ()> {
+        if self.n_rows != self.n_cols {
+            eprintln!("LU decomposition requires a square matrix");
+        }
+
+        let n = self.n_rows;
+        let mut lower = Matrix::with_value(0.0, (n, n));
+        let mut upper = Matrix::with_value(0.0, (n, n));
+
+        for i in 0..n {
+            // Upper triangular U
+            for j in i..n {
+                let mut sum = 0.0;
+                for k in 0..i {
+                    sum += lower.get(i, k)? * upper.get(k, j)?;
+                }
+                upper.set(i, j, self.get(i, j)? - sum)?;
+            }
+
+            // Lower triangular L
+            for j in i..n {
+                if i == j {
+                    // Set diagonal to 1
+                    lower.set(i, i, 1.0)?;
+                } else {
+                    let mut sum = 0.0;
+                    for k in 0..i {
+                        sum += lower.get(j, k)? * upper.get(k, i)?;
+                    }
+
+                    let denom = upper.get(i, i)?;
+                    if denom.abs() < 1e-6 {
+                        eprintln!("Singularity (zero-pivot)");
+                    }
+
+                    lower.set(j, i, (self.get(j, i)? - sum) / denom)?;
+                }
+            }
+        }
+
+        Ok((lower, upper))
     }
 
     fn matmul(&self, other: Self) -> Result<Self, ()> {
@@ -249,9 +290,23 @@ mod tests {
             vec![2.0, 3.0, 5.0, 7.0, 11.0, 13.0, 17.0, 19.0, 23.0],
             (3, 3),
         )
-        .det_laplace()?;
+        .det()?;
         let res = -78.0;
         assert_eq!(res, mat);
+        Ok(())
+    }
+
+    #[test]
+    fn lu() -> Result<(), ()> {
+        let (lower, upper) = Matrix::new(
+            vec![1.0, 2.0, -4.0, 2.0, 12.0, 6.0, 7.0, -12.0, 8.0],
+            (3, 3),
+        )
+        .lu()?;
+        let res_lower = Matrix::new(vec![1.0, 0.0, 0.0, 2.0, 1.0, 0.0, 7.0, -3.25, 1.0], (3, 3));
+        let res_upper = Matrix::new(vec![1.0, 2.0, -4.0, 0.0, 8.0, 14.0, 0.0, 0.0, 81.5], (3, 3));
+        assert_eq!(res_lower, lower);
+        assert_eq!(res_upper, upper);
         Ok(())
     }
 
