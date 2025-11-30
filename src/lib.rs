@@ -150,7 +150,7 @@ impl Matrix {
         Ok((lower, upper))
     }
 
-    fn matmul(&self, other: Self) -> Result<Self, ()> {
+    fn matmul(&self, other: &Self) -> Result<Self, ()> {
         let (m1, n1) = self.shape();
         let (_, n2) = other.shape();
 
@@ -188,6 +188,10 @@ impl Matrix {
             idx += 1;
         }
         Ok(res)
+    }
+
+    fn gram(&self) -> Result<Self, ()> {
+        self.transpose()?.matmul(self)
     }
 }
 
@@ -314,7 +318,7 @@ mod tests {
     fn matmul() -> Result<(), ()> {
         let mat1 = Matrix::new((0..30).map(|x| x as f32).collect(), (2, 15));
         let mat2 = Matrix::new((0..30).map(|x| x as f32).collect(), (15, 2));
-        let mat3 = mat1.matmul(mat2)?;
+        let mat3 = mat1.matmul(&mat2)?;
         let res = Matrix::new(vec![2030.0, 2135.0, 5180.0, 5510.0], (2, 2));
         assert_eq!(res, mat3);
         Ok(())
@@ -333,6 +337,16 @@ mod tests {
         let mat = Matrix::new((0..9).map(|x| x as f32).collect(), (3, 3)).transpose()?;
         let res = mat.trace()?;
         assert_eq!(res, 12.0);
+        Ok(())
+    }
+
+    #[test]
+    fn gram() -> Result<(), ()> {
+        let _mat = Matrix::new((0..9).map(|x| x as f32).collect(), (3, 3));
+        let mat = _mat.transpose()?.matmul(&_mat)?;
+        let res = _mat.gram()?;
+        eprintln!("{}", mat);
+        assert_eq!(res, mat);
         Ok(())
     }
 
